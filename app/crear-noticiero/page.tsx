@@ -77,8 +77,8 @@ export default function CrearNoticiero() {
   const [duration, setDuration] = useState(15)
   const [adCount, setAdCount] = useState(3)
   const [generateAudio, setGenerateAudio] = useState(false)  // Toggle para generar audio en finalize
-  const [selectedVoice, setSelectedVoice] = useState('es-mx')
-  const [voiceWPM, setVoiceWPM] = useState(175)  // WPM de la voz seleccionada
+  const [selectedVoice, setSelectedVoice] = useState('gemini-male-2')  // ✅ NUEVO: Gemini TTS por defecto
+  const [voiceWPM, setVoiceWPM] = useState(170)  // WPM de la voz seleccionada (actualizado para Gemini)
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfigSettings>(defaultVoiceConfig)
   const [timeStrategy, setTimeStrategy] = useState('auto')
   const [scheduledTime, setScheduledTime] = useState('08:00')  // Hora programada para el noticiero
@@ -997,6 +997,33 @@ export default function CrearNoticiero() {
                       settings={voiceConfig}
                       onChange={setVoiceConfig}
                     />
+                    
+                    {/* ✅ NUEVO: Selector de estilos de voz (solo para Gemini TTS) */}
+                    {selectedVoice && selectedVoice.startsWith('gemini-') && (
+                      <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium text-purple-700">
+                              Estilo de Voz
+                            </label>
+                            <select
+                              value={voiceConfig.voiceStyle}
+                              onChange={(e) => setVoiceConfig(prev => ({ ...prev, voiceStyle: e.target.value as any }))}
+                              className="w-full p-2 border border-purple-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            >
+                              <option value="natural">Natural y neutro</option>
+                              <option value="alegre">Alegre y enérgico</option>
+                              <option value="triste">Triste y melancólico</option>
+                              <option value="susurrar">Susurrado e íntimo</option>
+                              <option value="storyteller">Narrador de historias</option>
+                            </select>
+                          </div>
+                          <p className="text-xs text-purple-600">
+                            Selecciona el estilo de expresión para la voz del locutor
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">

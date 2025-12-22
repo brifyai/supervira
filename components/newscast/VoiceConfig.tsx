@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { Settings2, Zap, Radio } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Settings2, Zap, Radio, Smile, Frown, Volume2, BookOpen } from 'lucide-react'
 
 export interface VoiceConfigSettings {
   speed: number      // -50 a +50
@@ -12,6 +13,7 @@ export interface VoiceConfigSettings {
   volume: number     // -10 a +10 (dB)
   fmRadioEffect: boolean
   fmRadioIntensity: number  // 0-100
+  voiceStyle: 'alegre' | 'triste' | 'susurrar' | 'storyteller' | 'natural'  // ✅ NUEVO: Estilos de voz
 }
 
 interface VoiceConfigProps {
@@ -39,6 +41,32 @@ export function VoiceConfig({ settings, onChange, disabled }: VoiceConfigProps) 
 
   const handleFmIntensityChange = (value: number[]) => {
     onChange({ ...settings, fmRadioIntensity: value[0] })
+  }
+
+  const handleVoiceStyleChange = (style: 'alegre' | 'triste' | 'susurrar' | 'storyteller' | 'natural') => {
+    onChange({ ...settings, voiceStyle: style })
+  }
+
+  const getStyleIcon = (style: string) => {
+    switch (style) {
+      case 'alegre': return <Smile className="h-4 w-4 text-yellow-500" />
+      case 'triste': return <Frown className="h-4 w-4 text-blue-500" />
+      case 'susurrar': return <Volume2 className="h-4 w-4 text-purple-500" />
+      case 'storyteller': return <BookOpen className="h-4 w-4 text-green-500" />
+      case 'natural': return <Radio className="h-4 w-4 text-gray-500" />
+      default: return <Radio className="h-4 w-4 text-gray-500" />
+    }
+  }
+
+  const getStyleLabel = (style: string) => {
+    switch (style) {
+      case 'alegre': return 'Alegre y enérgico'
+      case 'triste': return 'Triste y melancólico'
+      case 'susurrar': return 'Susurrado e íntimo'
+      case 'storyteller': return 'Narrador de historias'
+      case 'natural': return 'Natural y neutro'
+      default: return 'Natural y neutro'
+    }
   }
 
   return (
@@ -86,16 +114,18 @@ export function VoiceConfig({ settings, onChange, disabled }: VoiceConfigProps) 
         <Slider
           value={[settings.pitch]}
           onValueChange={handlePitchChange}
-          min={-30}
-          max={30}
-          step={5}
+          min={-20}
+          max={20}
+          step={1}
           disabled={disabled}
           className="w-full"
         />
         <div className="flex justify-between text-[10px] text-gray-400">
-          <span>Más grave</span>
+          <span>Muy grave</span>
+          <span>Grave</span>
           <span>Normal</span>
-          <span>Más agudo</span>
+          <span>Agudo</span>
+          <span>Muy agudo</span>
         </div>
       </div>
 
@@ -120,6 +150,53 @@ export function VoiceConfig({ settings, onChange, disabled }: VoiceConfigProps) 
           <span>Más bajo</span>
           <span>Normal</span>
           <span>Más alto</span>
+        </div>
+      </div>
+
+      {/* Selector de Estilo de Voz (solo para Gemini TTS) */}
+      <div className="space-y-3 pt-2 border-t">
+        <div className="flex items-center justify-between">
+          <Label className="flex items-center gap-2 text-sm">
+            {getStyleIcon(settings.voiceStyle)}
+            Estilo de Voz
+          </Label>
+          <Select value={settings.voiceStyle} onValueChange={handleVoiceStyleChange} disabled={disabled}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Seleccionar estilo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="natural">
+                <div className="flex items-center gap-2">
+                  <Radio className="h-4 w-4 text-gray-500" />
+                  <span>{getStyleLabel('natural')}</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="alegre">
+                <div className="flex items-center gap-2">
+                  <Smile className="h-4 w-4 text-yellow-500" />
+                  <span>{getStyleLabel('alegre')}</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="triste">
+                <div className="flex items-center gap-2">
+                  <Frown className="h-4 w-4 text-blue-500" />
+                  <span>{getStyleLabel('triste')}</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="susurrar">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="h-4 w-4 text-purple-500" />
+                  <span>{getStyleLabel('susurrar')}</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="storyteller">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-green-500" />
+                  <span>{getStyleLabel('storyteller')}</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -164,11 +241,12 @@ export function VoiceConfig({ settings, onChange, disabled }: VoiceConfigProps) 
   )
 }
 
-// Default settings - Basados en recomendación de VoiceMaker
+// Default settings - Basados en recomendación de Google Gemini TTS
 export const defaultVoiceConfig: VoiceConfigSettings = {
-  speed: 1,       // +1% velocidad (recomendación VoiceMaker)
+  speed: 0,       // Velocidad normal (sin ajuste)
   pitch: 0,       // Tono natural
-  volume: 2,      // +2dB de volumen
+  volume: 0,      // Volumen normal
   fmRadioEffect: false,
-  fmRadioIntensity: 27
+  fmRadioIntensity: 27,
+  voiceStyle: 'natural'  // ✅ NUEVO: Estilo de voz por defecto
 }

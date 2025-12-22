@@ -158,7 +158,7 @@ export function Navigation() {
 
           {/* Navigation Links */}
           <div className="hidden lg:flex items-center flex-1 mx-4">
-            <div className="flex items-center gap-1 justify-center w-full">
+            <div className="flex items-center gap-1 justify-start w-full">
               {navigationItems.map((item) => {
                 const isActive = pathname === item.href
                 return (
@@ -166,14 +166,14 @@ export function Navigation() {
                     key={item.name}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-1 px-1.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
+                      "flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap h-8",
                       isActive
                         ? "bg-blue-50 text-blue-700"
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                     )}
                   >
-                    <item.icon className="h-3 w-3" />
-                    <span>{item.name}</span>
+                    <item.icon className="h-3 w-3 flex-shrink-0" />
+                    <span className="leading-none">{item.name}</span>
                   </Link>
                 )
               })}

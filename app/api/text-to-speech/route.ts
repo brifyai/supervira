@@ -6,11 +6,11 @@ import { getDownloadUrl } from '@/lib/s3'
 // Real síntesis de voz usando múltiples proveedores
 interface TTSRequest {
   text: string
-  provider?: 'voicemaker' | 'local' | 'auto'  // VoiceMaker es el principal
+  provider?: 'gemini' | 'voicemaker' | 'local' | 'auto'  // Gemini es el principal
   voice?: string
   speed?: number
   pitch?: number
-  volume?: number  // ✅ NUEVO: Volumen en dB (VoiceMaker)
+  volume?: number  // ✅ NUEVO: Volumen en dB
   format?: 'mp3' | 'wav' | 'ogg'
   // Opciones específicas por proveedor
   stability?: number
@@ -19,6 +19,8 @@ interface TTSRequest {
   // VoxFX (VoiceMaker)
   fmRadioEffect?: boolean
   fmRadioIntensity?: number  // 0-100
+  // ✅ NUEVO: Estilo de voz para Gemini TTS
+  style?: 'alegre' | 'triste' | 'susurrar' | 'storyteller' | 'natural'
 }
 
 // Función auxiliar para mapear opciones por proveedor
@@ -102,7 +104,81 @@ export async function POST(request: NextRequest) {
     console.log(`🎙️ Iniciando síntesis de voz: ${text.length} caracteres`)
     const startTime = Date.now()
 
-    // PRIORIDAD 1: VoiceMaker API (Cloud)
+    // PRIORIDAD 1: Google Gemini TTS API (Cloud)
+    const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
+
+    if (geminiApiKey) {
+      try {
+        console.log('🔄 Usando Google Gemini TTS API...')
+        console.log(`🗣️ Voice requested: ${voice || 'gemini-male-2 (default)'}`)
+
+        const { GeminiTTSProvider, GEMINI_VOICES } = await import('@/lib/tts-providers')
+        const geminiProvider = new GeminiTTSProvider(geminiApiKey)
+
+        // Determinar voz a usar
+        const voiceId = voice || GEMINI_VOICES.MALE_2.id
+
+        const result = await geminiProvider.synthesize(text, {
+          voiceId: voiceId,
+          speed: requestData.speed,
+          pitch: requestData.pitch,
+          volume: requestData.volume,
+          style: requestData.style || 'natural'  // ✅ NUEVO: Estilo de voz
+        })
+
+        if (!result.success) {
+          throw new Error('Gemini TTS synthesis failed')
+        }
+
+        // Guardar localmente en public/generated-audio/
+        const fs = require('fs')
+        const path = require('path')
+
+        const audioDir = path.join(process.cwd(), 'public', 'generated-audio')
+        if (!fs.existsSync(audioDir)) {
+          fs.mkdirSync(audioDir, { recursive: true })
+        }
+
+        const timestamp = Date.now()
+        const fileName = `tts_${timestamp}.mp3`
+        const filePath = path.join(audioDir, fileName)
+
+        // Guardar el audio generado
+        if (result.audioData) {
+          fs.writeFileSync(filePath, Buffer.from(result.audioData))
+        }
+
+        const audioUrl = `/generated-audio/${fileName}`
+        const processingTime = Date.now() - startTime
+
+        console.log(`✅ Audio generado exitosamente con Gemini TTS: ${processingTime}ms`)
+        console.log(`📁 Guardado en: ${filePath}`)
+
+        return NextResponse.json({
+          success: true,
+          provider: 'gemini',
+          voice: voiceId,
+          duration: result.duration || 0,
+          audioUrl: audioUrl,
+          format: 'mp3',
+          metadata: {
+            textLength: text.length,
+            processingTime,
+            estimatedCost: result.cost || 0,
+            provider: 'Google Gemini TTS API',
+            configuredProviders: ['GeminiTTS'],
+            synthesizedAt: new Date().toISOString()
+          }
+        })
+      } catch (geminiError) {
+        console.error('❌ Gemini TTS Error:', geminiError instanceof Error ? geminiError.message : 'Error desconocido')
+        console.log('🔄 Intentando con proveedores alternativos...')
+      }
+    } else {
+      console.warn('⚠️ GOOGLE_GEMINI_API_KEY no configurada, intentando proveedores alternativos...')
+    }
+
+    // PRIORIDAD 2: VoiceMaker API (Cloud - Backup)
     const voicemakerApiKey = process.env.VOICEMAKER_API_KEY;
 
     if (voicemakerApiKey) {

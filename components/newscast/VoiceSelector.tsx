@@ -28,6 +28,9 @@ export function VoiceSelector({ value, onChange, disabled, showOnlyUserVoices }:
     const onChangeRef = useRef(onChange)
     const valueRef = useRef(value)
     const hasInitialized = useRef(false)
+    
+    // Detectar si la voz seleccionada es de Gemini TTS
+    const isGeminiVoice = value && value.startsWith('gemini-')
 
     // Mantener refs actualizadas
     useEffect(() => {
@@ -47,6 +50,12 @@ export function VoiceSelector({ value, onChange, disabled, showOnlyUserVoices }:
 
                     if (showOnlyUserVoices) {
                         loadedVoices = loadedVoices.filter((v: Voice) => v.isUserVoice)
+                    }
+
+                    // ✅ FILTRAR: Solo mostrar voces Gemini TTS si hay alguna disponible
+                    const geminiVoices = loadedVoices.filter((v: Voice) => v.id && v.id.startsWith('gemini-'))
+                    if (geminiVoices.length > 0) {
+                        loadedVoices = geminiVoices
                     }
 
                     setVoices(loadedVoices)

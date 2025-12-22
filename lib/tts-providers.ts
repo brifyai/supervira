@@ -47,10 +47,77 @@ export const VOICEMAKER_VOICES = {
   }
 };
 
+// ============================================================================
+// GOOGLE GEMINI TTS VOICES (Spanish) - Con configuración avanzada
+// ============================================================================
+export const GEMINI_VOICES = {
+  // Voces masculinas
+  MALE_1: {
+    id: 'gemini-male-1',
+    name: 'Carlos (Masculino - Profundo)',
+    language: 'es-CL',
+    gender: 'male',
+    wpm: 160,
+    avgPauseMs: 200,
+    pitchRange: { min: -20, max: 20, default: 0 }
+  },
+  MALE_2: {
+    id: 'gemini-male-2',
+    name: 'Miguel (Masculino - Estándar)',
+    language: 'es-CL',
+    gender: 'male',
+    wpm: 170,
+    avgPauseMs: 180,
+    pitchRange: { min: -20, max: 20, default: 0 }
+  },
+  MALE_3: {
+    id: 'gemini-male-3',
+    name: 'Roberto (Masculino - Juvenil)',
+    language: 'es-CL',
+    gender: 'male',
+    wpm: 180,
+    avgPauseMs: 160,
+    pitchRange: { min: -20, max: 20, default: 0 }
+  },
+  // Voces femeninas
+  FEMALE_1: {
+    id: 'gemini-female-1',
+    name: 'Ana (Femenino - Suave)',
+    language: 'es-CL',
+    gender: 'female',
+    wpm: 155,
+    avgPauseMs: 220,
+    pitchRange: { min: -20, max: 20, default: 0 }
+  },
+  FEMALE_2: {
+    id: 'gemini-female-2',
+    name: 'Laura (Femenino - Estándar)',
+    language: 'es-CL',
+    gender: 'female',
+    wpm: 165,
+    avgPauseMs: 200,
+    pitchRange: { min: -20, max: 20, default: 0 }
+  },
+  FEMALE_3: {
+    id: 'gemini-female-3',
+    name: 'Sofía (Femenino - Enérgica)',
+    language: 'es-CL',
+    gender: 'female',
+    wpm: 175,
+    avgPauseMs: 180,
+    pitchRange: { min: -20, max: 20, default: 0 }
+  }
+};
+
 // Helper para obtener WPM calibrado de una voz
 export function getCalibratedWPM(voiceId: string): number {
+  // Buscar primero en Gemini voices
+  const geminiVoice = Object.values(GEMINI_VOICES).find(v => v.id === voiceId);
+  if (geminiVoice) return geminiVoice.wpm;
+  
+  // Si no, buscar en VoiceMaker voices
   const voiceEntry = Object.values(VOICEMAKER_VOICES).find(v => v.id === voiceId);
-  return voiceEntry?.wpm || 198;  // Default calibrado para VoiceMaker (datos reales)
+  return voiceEntry?.wpm || 160;  // Default actualizado para Gemini
 }
 
 // Constantes de timing para cálculos precisos
@@ -326,11 +393,208 @@ export class ChutesTTSProvider implements TTSProvider {
 }
 
 // ============================================================================
+// 3. GOOGLE GEMINI TTS PROVIDER (Cloud API)
+// ============================================================================
+export class GeminiTTSProvider implements TTSProvider {
+  private apiKey: string;
+  private baseUrl = 'https://texttospeech.googleapis.com/v1';
+  public name = 'GeminiTTS';
+
+  constructor(apiKey?: string) {
+    this.apiKey = apiKey || process.env.GOOGLE_GEMINI_API_KEY || '';
+  }
+
+  async synthesize(text: string, options?: any): Promise<TTSResponse> {
+    try {
+      console.log(`[GeminiTTS] Generando audio para: "${text.substring(0, 50)}..."`);
+
+      // Determinar voz a usar
+      const voiceId = options?.voiceId || options?.voice || GEMINI_VOICES.MALE_2.id;
+      const voice = Object.values(GEMINI_VOICES).find(v => v.id === voiceId);
+      
+      if (!voice) {
+        throw new Error(`Voz no encontrada: ${voiceId}`);
+      }
+
+      // Mapear estilos de voz a parámetros de Google TTS
+      const styleMap: { [key: string]: string } = {
+        'alegre': 'cheerful',
+        'triste': 'sad',
+        'susurrar': 'whisper',
+        'storyteller': 'narrative',
+        'natural': 'normal'
+      };
+
+      const voiceStyle = styleMap[options?.style || 'natural'] || 'normal';
+      
+      // Normalizar texto
+      const normalizedText = text
+        .normalize('NFC')
+        .replace(/\u00A0/g, ' ');
+
+      console.log(`[GeminiTTS] Usando voz: ${voice.name}, estilo: ${voiceStyle}`);
+
+      // Construir solicitud para Google TTS
+      const requestBody = {
+        input: {
+          text: normalizedText
+        },
+        voice: {
+          languageCode: voice.language,
+          name: this.getGoogleVoiceName(voice),
+          ssmlGender: voice.gender
+        },
+        audioConfig: {
+          audioEncoding: 'MP3',
+          speakingRate: this.calculateSpeakingRate(voice.wpm, options?.speed || 0),
+          pitch: this.calculatePitch(voice, options?.pitch || 0),
+          volumeGainDb: options?.volume || 0,
+          sampleRateHertz: 24000,
+          effects: [
+            {
+              audioProfile: this.getAudioProfile(voiceStyle)
+            }
+          ]
+        }
+      };
+
+      const response = await fetch(`${this.baseUrl}/text:synthesize?key=${this.apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(120000) // 2 min timeout
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Google Gemini TTS API Error (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.audioContent) {
+        throw new Error('Google Gemini TTS: No se recibió contenido de audio');
+      }
+
+      // Decodificar base64 a ArrayBuffer
+      const audioBuffer = Buffer.from(data.audioContent, 'base64');
+
+      // Estimar duración basada en palabras y WPM
+      const words = text.trim().split(/\s+/).length;
+      const adjustedWPM = voice.wpm * (1 + (options?.speed || 0) / 100);
+      const estimatedDuration = Math.max(3, Math.round((words / adjustedWPM) * 60));
+
+      console.log(`[GeminiTTS] ✅ Audio generado: ${estimatedDuration}s`);
+
+      return {
+        audioData: audioBuffer.buffer.slice(audioBuffer.byteOffset, audioBuffer.byteOffset + audioBuffer.byteLength) as ArrayBuffer,
+        audioUrl: '', // Se generará URL temporal si es necesario
+        format: 'mp3',
+        duration: estimatedDuration,
+        cost: text.length * 0.000004, // Estimación de costo
+        success: true,
+        provider: 'gemini',
+        voice: voiceId
+      };
+
+    } catch (error) {
+      console.error('[GeminiTTS] Error:', error);
+      throw error;
+    }
+  }
+
+  private getGoogleVoiceName(voice: any): string {
+    // Mapear nuestras voces personalizadas a voces de Google
+    const voiceMap: { [key: string]: string } = {
+      'gemini-male-1': 'es-CL-Standard-A',
+      'gemini-male-2': 'es-CL-Standard-B',
+      'gemini-male-3': 'es-CL-Standard-C',
+      'gemini-female-1': 'es-CL-Standard-D',
+      'gemini-female-2': 'es-CL-Standard-E',
+      'gemini-female-3': 'es-CL-Wavenet-A'
+    };
+    return voiceMap[voice.id] || 'es-CL-Standard-B';
+  }
+
+  private calculateSpeakingRate(baseWPM: number, speedAdjustment: number): number {
+    // Google TTS usa 0.25 a 4.0 donde 1.0 es normal
+    // Convertir WPM a rate de Google
+    const normalRate = baseWPM / 160; // 160 WPM es el estándar
+    const speedMultiplier = 1 + (speedAdjustment / 100);
+    return Math.max(0.25, Math.min(4.0, normalRate * speedMultiplier));
+  }
+
+  private calculatePitch(voice: any, pitchAdjustment: number): number {
+    // Google TTS usa -20.0 a 20.0 semitones
+    const basePitch = voice.pitchRange?.default || 0;
+    const adjustedPitch = basePitch + pitchAdjustment;
+    return Math.max(-20.0, Math.min(20.0, adjustedPitch));
+  }
+
+  private getAudioProfile(style: string): string {
+    const profileMap: { [key: string]: string } = {
+      'alegre': 'bright-radio',
+      'triste': 'soft-radio',
+      'susurrar': 'intimate-audiobook',
+      'storyteller': 'documentary',
+      'natural': 'news'
+    };
+    return profileMap[style] || 'news';
+  }
+
+  async validateConfig(): Promise<boolean> {
+    if (!this.apiKey) {
+      console.warn('[GeminiTTS] API Key no configurada');
+      return false;
+    }
+
+    try {
+      // Intentar una síntesis simple para validar la API key
+      const testResponse = await fetch(`${this.baseUrl}/text:synthesize?key=${this.apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: { text: 'Test' },
+          voice: { languageCode: 'es-CL', name: 'es-CL-Standard-B' },
+          audioConfig: { audioEncoding: 'MP3' }
+        })
+      });
+      return testResponse.ok;
+    } catch (e) {
+      console.error('[GeminiTTS] Error validando config:', e);
+      return false;
+    }
+  }
+
+  async listSpanishVoices(): Promise<any[]> {
+    // Google TTS tiene voces predefinidas, retornamos las nuestras configuradas
+    return Object.values(GEMINI_VOICES).map(voice => ({
+      id: voice.id,
+      name: voice.name,
+      language: voice.language,
+      gender: voice.gender,
+      wpm: voice.wpm
+    }));
+  }
+}
+
+// ============================================================================
 // FACTORY
 // ============================================================================
 export class TTSProviderFactory {
-  static getProvider(type: 'voicemaker' | 'local' | 'chutes' = 'voicemaker'): TTSProvider {
-    // PRIORIDAD 1: VoiceMaker (Cloud API - Principal)
+  static getProvider(type: 'gemini' | 'voicemaker' | 'local' | 'chutes' = 'gemini'): TTSProvider {
+    // PRIORIDAD 1: Google Gemini TTS (Cloud API - Principal)
+    if (type === 'gemini') {
+      const apiKey = process.env.GOOGLE_GEMINI_API_KEY || '';
+      if (apiKey) {
+        return new GeminiTTSProvider(apiKey);
+      }
+      console.warn('[TTSFactory] Google Gemini API key no configurada');
+    }
+
+    // PRIORIDAD 2: VoiceMaker (Cloud API - Backup)
     if (type === 'voicemaker') {
       const apiKey = process.env.VOICEMAKER_API_KEY || '';
       if (apiKey) {
@@ -339,18 +603,23 @@ export class TTSProviderFactory {
       console.warn('[TTSFactory] VoiceMaker API key no configurada');
     }
 
-    // PRIORIDAD 2: Local TTS (Legacy - fallback)
+    // PRIORIDAD 3: Local TTS (Legacy - fallback)
     if (type === 'local') {
       return new LocalTTSProvider();
     }
 
-    // PRIORIDAD 3: Chutes (si se solicita explícitamente)
+    // PRIORIDAD 4: Chutes (si se solicita explícitamente)
     if (type === 'chutes') {
       const apiKey = process.env.CHUTES_API_KEY || '';
       return new ChutesTTSProvider(apiKey);
     }
 
-    // Default: VoiceMaker si hay API key, sino Local
+    // Default: Gemini si hay API key, sino VoiceMaker, sino Local
+    const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || '';
+    if (geminiKey) {
+      return new GeminiTTSProvider(geminiKey);
+    }
+
     const voicemakerKey = process.env.VOICEMAKER_API_KEY || '';
     if (voicemakerKey) {
       return new VoiceMakerTTSProvider(voicemakerKey);
@@ -359,17 +628,31 @@ export class TTSProviderFactory {
     return new LocalTTSProvider();
   }
 
-  // Helper for route.ts compatibility - ahora usa VoiceMaker primero
+  // Helper for route.ts compatibility - ahora usa Gemini primero
   static getBestProvider(): TTSProvider {
+    const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || '';
+    if (geminiKey) {
+      return new GeminiTTSProvider(geminiKey);
+    }
+
     const voicemakerKey = process.env.VOICEMAKER_API_KEY || '';
     if (voicemakerKey) {
       return new VoiceMakerTTSProvider(voicemakerKey);
     }
+    
     return new LocalTTSProvider();
   }
 
   static getAvailableProviders(): any[] {
     const providers = [];
+
+    if (process.env.GOOGLE_GEMINI_API_KEY) {
+      providers.push({
+        name: 'GeminiTTS',
+        isConfigured: () => true,
+        estimateCost: (chars: number) => chars * 0.000004
+      });
+    }
 
     if (process.env.VOICEMAKER_API_KEY) {
       providers.push({
@@ -386,6 +669,7 @@ export class TTSProviderFactory {
 
   static getAllProviders(): any[] {
     return [
+      { name: 'GeminiTTS' },
       { name: 'VoiceMaker' },
       { name: 'LocalTTS' },
       { name: 'ChutesTTS' }
