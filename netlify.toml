@@ -1,0 +1,54 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# Next.js plugin for Netlify
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Build settings
+[build.environment]
+  # Node version for build
+  NODE_VERSION = "20"
+  
+  # Next.js output configuration
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# ============================================
+# IMPORTANT SECURITY NOTES:
+# ============================================
+# 
+# The following environment variables should be set in Netlify Dashboard
+# (Site Settings > Build & deploy > Environment variables):
+#
+# SERVER-ONLY (secrets - never use NEXT_PUBLIC_ prefix):
+# - SUPABASE_SERVICE_ROLE_KEY
+# - OPENWEATHER_API_KEY  
+# - CHUTES_API_KEY
+# - CHUTES_CHAT_COMPLETIONS_URL (optional, has default)
+# - CHUTES_TTS_URL (optional, has default)
+# - CHUTES_MODEL (optional, has default)
+# - CHUTES_VOICE (optional, has default)
+# - SCRAPINGBEE_API_KEY
+# - VOICEMAKER_API_KEY
+# - MERCADOPAGO_ACCESS_TOKEN
+# - MERCADOPAGO_CLIENT_SECRET
+# - MERCADOPAGO_WEBHOOK_SECRET
+# - CRON_SECRET
+#
+# PUBLIC (safe to expose in browser):
+# - NEXT_PUBLIC_SUPABASE_URL
+# - NEXT_PUBLIC_SUPABASE_ANON_KEY (designed to be public)
+# - NEXT_PUBLIC_APP_URL
+# - NEXT_PUBLIC_MERCADOPAGO_ENVIRONMENT
+# - NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY
+#
+# ============================================
+
+# Headers for security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

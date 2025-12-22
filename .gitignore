@@ -1,0 +1,120 @@
+# Ignorar dependencias y artefactos de build
+node_modules/
+.next/
+dist/
+build/
+
+# Variables de entorno (ARCHIVOS SENSIBLES)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Archivos de audio y multimedia (NO SUBIR AL REPOSITORIO)
+*.mp3
+*.wav
+*.ogg
+*.flac
+*.m4a
+*.aac
+*.wma
+*.aiff
+*.au
+*.ra
+*.amr
+*.3gp
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+
+# Directorios de audio generados
+public/generated-audio/
+uploads/
+temp/
+tmp/
+
+# Archivos de logs y temporales
+*.log
+*.tmp
+*.temp
+*.cache
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# Archivos del sistema operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Archivos de IDE y editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.atom/
+.brackets.json
+
+# Archivos de TypeScript
+*.tsbuildinfo
+
+# Archivos de lock y dependencias
+package-lock.json
+# yarn.lock  # IMPORTANTE: yarn.lock DEBE subirse para que Netlify instale las versiones correctas
+pnpm-lock.yaml
+
+# Archivos de configuración local
+*.local
+config/local.js
+config/local.json
+
+# Archivos de base de datos locales
+*.sqlite
+*.sqlite3
+*.db
+
+# Archivos de certificados y claves
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Archivos de compresión
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+
+# Documentos y archivos de oficina
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# Archivos de prueba y cobertura de código
+coverage/
+.nyc_output/
+junit.xml
+test-results/
+
+# Archivos de despliegue
+.vercel/
+.netlify/
+.firebase/
