@@ -24,7 +24,7 @@ export function TimeFilters({ selectedPeriod = "7-days", onPeriodChange }: TimeF
   }
 
   return (
-    <div className="flex items-center space-x-4 mb-6">
+    <div className="flex items-center space-x-2">
       <div className="flex items-center space-x-2">
         <Calendar className="h-4 w-4 text-gray-500" />
         <Select value={selectedPeriod} onValueChange={onPeriodChange}>
@@ -48,7 +48,7 @@ export function TimeFilters({ selectedPeriod = "7-days", onPeriodChange }: TimeF
         </span>
       </div>
 
-      <Button variant="outline" size="sm" className="ml-auto" onClick={handleApply}>
+      <Button variant="outline" size="sm" onClick={handleApply}>
         Aplicar
       </Button>
     </div>

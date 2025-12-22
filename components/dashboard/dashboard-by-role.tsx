@@ -271,18 +271,16 @@ function AdminDashboard({ className }: DashboardProps) {
     <div className={`space-y-6 ${className}`}>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
-              <Shield className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900">Panel de Control</h1>
-              <p className="text-muted-foreground">Vista general de tu cuenta y métricas.</p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
+            <Shield className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Panel de Control</h1>
+            <p className="text-muted-foreground">Vista general de tu cuenta y métricas.</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <TimeFilters value={period} onChange={setPeriod} />
           <Link href="/crear-noticiero">
             <Button>
