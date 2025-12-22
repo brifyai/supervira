@@ -123,17 +123,16 @@ export async function POST(request: NextRequest) {
     const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
     // Extract global voice preference from metadata
-    const globalVoiceId = noticiero.metadata?.config?.voiceModel || noticiero.metadata?.voiceModel || noticiero.metadata?.voice_model || 'default';
-    // ✅ NUEVO: Obtener configuración de voz desde metadata
+    const globalVoiceId = noticiero.metadata?.config?.voiceModel || noticiero.metadata?.voiceModel || noticiero.metadata?.voice_model || 'gemini-male-2';
+    // ✅ NUEVO: Obtener configuración de voz desde metadata para Gemini 2.5 Flash TTS
     const globalVoiceSettings = noticiero.metadata?.voice_settings || noticiero.metadata?.config?.voiceSettings || {
-      speed: 13,      // Default VoiceMaker
+      speed: 13,      // Default para Gemini TTS
       pitch: 0,
       volume: 2,
-      fmRadioEffect: false,
-      fmRadioIntensity: 27
+      style: 'natural'  // Estilo por defecto para Gemini
     };
     console.log(`🔍 Global Voice ID from metadata: ${globalVoiceId}`);
-    console.log(`🔍 Voice Settings: speed=${globalVoiceSettings.speed}, pitch=${globalVoiceSettings.pitch}, volume=${globalVoiceSettings.volume}`);
+    console.log(`🔍 Voice Settings: speed=${globalVoiceSettings.speed}, pitch=${globalVoiceSettings.pitch}, volume=${globalVoiceSettings.volume}, style=${globalVoiceSettings.style}`);
 
     for (const item of itemsToProcess) {
       if (!item.audioUrl && item.content) {
@@ -160,13 +159,13 @@ export async function POST(request: NextRequest) {
                 text: sanitizeTextForTTS(item.content),
                 voice: targetVoiceId,
                 language: 'es',
-                format: 'base64',
-                // ✅ CORREGIDO: Pasar todas las configuraciones de voz desde metadata
+                format: 'mp3',
+                provider: 'gemini',
+                // ✅ CORREGIDO: Pasar configuraciones de voz para Gemini 2.5 Flash TTS
                 speed: globalVoiceSettings.speed ?? 13,
                 pitch: globalVoiceSettings.pitch ?? 0,
                 volume: globalVoiceSettings.volume ?? 2,
-                fmRadioEffect: globalVoiceSettings.fmRadioEffect ?? false,
-                fmRadioIntensity: globalVoiceSettings.fmRadioIntensity ?? 27
+                style: globalVoiceSettings.style || 'natural'
               })
             });
 
