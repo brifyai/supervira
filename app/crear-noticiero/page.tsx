@@ -590,8 +590,7 @@ export default function CrearNoticiero() {
         speed: voiceConfig.speed,
         pitch: voiceConfig.pitch,
         volume: voiceConfig.volume,
-        fmRadioEffect: voiceConfig.fmRadioEffect,
-        fmRadioIntensity: voiceConfig.fmRadioIntensity
+        voiceStyle: voiceConfig.voiceStyle
       },
       audioConfig: {
         cortinas_enabled: cortinasEnabled,
