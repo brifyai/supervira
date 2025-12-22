@@ -22,13 +22,13 @@ export const CHUTES_CONFIG = {
   },
 
   // Configuración del modelo y voz
-  model: process.env.CHUTES_MODEL || 'openai/gpt-oss-120b',
+  model: process.env.CHUTES_MODEL || 'google/gemini-2.0-flash-exp',
   voice: process.env.CHUTES_VOICE || 'af_heart',
 
   // Configuraciones por defecto para diferentes tipos de peticiones
   defaultOptions: {
     chatCompletions: {
-      model: process.env.CHUTES_MODEL || 'openai/gpt-oss-120b',
+      model: process.env.CHUTES_MODEL || 'google/gemini-2.0-flash-exp',
       stream: false,
       max_tokens: 1024,
       temperature: 0.7

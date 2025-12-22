@@ -10,6 +10,18 @@ import { CHUTES_CONFIG, getChutesHeaders } from './chutes-config'
 import { fetchWithRetry } from './utils'
 import { detectRepetitions, buildCorrectivePrompt, type RepetitionAnalysis } from './text-validation'
 
+// Configuración directa de Google Gemini 2.5 Flash
+const GEMINI_CONFIG = {
+  apiKey: process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '',
+  model: 'gemini-2.0-flash-exp',
+  endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent'
+}
+
+// Función para obtener headers de Gemini
+const getGeminiHeaders = () => ({
+  'Content-Type': 'application/json'
+})
+
 // ==================================================
 // PREPARACIÓN DE CONTENIDO ANTES DE ENVIAR A IA
 // ==================================================
@@ -260,9 +272,9 @@ export async function humanizeText(
         const topicAnchor = extractTopic(cleanedText)
 
         // ============================================================
-        // PROMPT v6 - TTS READY + Anti-Comas + Anclaje Temático
+        // PROMPT v7 - TTS READY + Anti-Comas + Anclaje Temático + ESPAÑOL PERFECTO
         // ============================================================
-        const systemPrompt = `Eres un editor y locutor profesional de radio en Chile. Tu tarea es transformar noticias en **guiones radiales listos para TTS** (texto a voz). 
+        const systemPrompt = `Eres un editor y locutor profesional de radio en Chile. Tu tarea es transformar noticias en **guiones radiales listos para TTS** (texto a voz) con **español chileno perfecto**.
 
 ⚠️ IMPORTANTE: El texto será leído por un sistema de voz, NO por un humano. Por eso:
 
@@ -273,6 +285,9 @@ export async function humanizeText(
 - Escribir como si hablaras al aire: **natural, fluido, sin estructuras escritas**.
 - Usar vocabulario chileno estándar (ej: "carabineros", "miles de millones", "alcalde").
 - Terminar siempre con una oración completa que cierre la noticia.
+- **PRESERVAR TODOS LOS ACENTOS, TILDES Y Ñ**: México, Perú, Argentina, construcción, información, público, miércoles, año, también, además, política, económico, técnico, básico, análisis, sé, dé, mí, tú, él, qué, quién, cómo, dónde, cuándo, porqué, dijéramos, fuéramos, tuviéramos, hubiéramos, dijésemos, etc.
+- **USAR CORRECTAMENTE LA PUNTUACIÓN**: puntos para pausas largas, comas solo para separar elementos en una lista muy corta.
+- **VERIFICAR TODAS LAS PALABRAS EN ESPAÑOL**: asegurarse de que cada palabra exista y esté correctamente escrita.
 
 ❌ NUNCA:
 - Uses más de una coma por noticia (ideal: cero).
@@ -282,6 +297,8 @@ export async function humanizeText(
 - Inventes datos, nombres, cifras o declaraciones.
 - **Introduzcas temas que no estén en el texto original**.
 - **Relaciones la noticia con otros temas aunque parezcan relacionados**.
+- **OMITAS ACENTOS O TILDES**: nunca escribir "Mexico" en lugar de "México", "ano" en lugar de "año", "ademas" en lugar de "además".
+- **REEMPLACES LA Ñ**: nunca escribir "nino" en lugar de "niño", "camion" en lugar de "camión".
 
 🧠 REGLA DE ORO PARA TTS:
 > "Si al leer en voz alta necesitas hacer una pausa para respirar… entonces debió ser un punto, no una coma."
@@ -296,12 +313,20 @@ Si el texto original menciona un solo tema, **no introduzcas ni sugieras otros t
 
 🎯 EXTENSIÓN: ${targetWords} palabras. Resume si es necesario, pero **mejor menos que mal leído**.
 
-DEVUELVES ÚNICAMENTE el guion final. Nada más.`
+DEVUELVES ÚNICAMENTE el guion final con español perfecto. Nada más.`
 
         const userPrompt = `Transforma este texto en un guion radial para Chile, listo para TTS. Usa solo puntos. Cero comas a menos que sea imposible entender.
 
 📌 TEMA CENTRAL: "${topicAnchor}"
 ⚠️ NO HABLES DE OTROS TEMAS. Solo lo que está en el texto original.
+
+🎯 REGLA CRÍTICA: PRESERVA TODOS LOS ACENTOS, TILDES Y Ñ
+- México (no Mexico), Perú (no Peru), Argentina (no Argentina)
+- construcción, información, público, miércoles, año, también, además
+- política, económico, técnico, básico, análisis
+- sé, dé, mí, tú, él, qué, quién, cómo, dónde, cuándo, porqué
+- dijéramos, fuéramos, tuviéramos, hubiéramos, dijésemos
+- niño (no nino), camión (no camion), mañana (no manana)
 
 NOTICIA ORIGINAL:
 "${cleanedText}"
@@ -309,39 +334,42 @@ NOTICIA ORIGINAL:
 ${transitionPhrase ? `INICIA CON: "${transitionPhrase}"` : ''}
 REGIÓN: ${region}
 
-→ Devuelve SOLO el guion sobre el tema central. Nada más.`
+→ Devuelve SOLO el guion sobre el tema central con español perfecto. Nada más.`
 
         // Calcular tokens aproximados
         const inputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4)
 
+        // Usar Gemini 2.5 Flash directamente
         const response = await fetchWithRetry(
-            CHUTES_CONFIG.endpoints.chatCompletions,
+            `${GEMINI_CONFIG.endpoint}?key=${GEMINI_CONFIG.apiKey}`,
             {
                 method: 'POST',
-                headers: getChutesHeaders(),
+                headers: getGeminiHeaders(),
                 body: JSON.stringify({
-                    model: CHUTES_CONFIG.model,
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt }
-                    ],
-                    max_tokens: Math.max(600, targetWords * 4),  // ✅ AUMENTADO: más espacio para completar oraciones
-                    temperature: 0.5  // ✅ REDUCIDO de 0.7 a 0.5 para más consistencia
+                    contents: [{
+                        parts: [{
+                            text: `${systemPrompt}\n\n${userPrompt}`
+                        }]
+                    }],
+                    generationConfig: {
+                        maxOutputTokens: Math.max(600, targetWords * 4),
+                        temperature: 0.5
+                    }
                 })
             },
-            { retries: 3, backoff: 2000 }  // ✅ Aumentado para evitar 429 en producción
+            { retries: 3, backoff: 2000 }
         )
 
         if (!response.ok) {
-            console.warn(`⚠️ Error en Chutes AI: ${response.status}. Usando texto original limpio.`)
+            console.warn(`⚠️ Error en Gemini: ${response.status}. Usando texto original limpio.`)
             return fallbackHumanize(text, transitionPhrase, targetWords)
         }
 
         const data = await response.json()
-        let humanizedContent = data.choices?.[0]?.message?.content?.trim()
+        let humanizedContent = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
 
         if (!humanizedContent) {
-            console.warn('⚠️ Respuesta vacía de Chutes AI. Usando fallback.')
+            console.warn('⚠️ Respuesta vacía de Gemini. Usando fallback.')
             return fallbackHumanize(text, transitionPhrase, targetWords)
         }
 
@@ -392,8 +420,8 @@ REGIÓN: ${region}
             }
             const reductionTopic = extractTopicFromContent(humanizedContent)
 
-            // Prompt v6 - Reducción TTS + Anti-Comas + Anclaje Temático
-            const strictPrompt = `Eres un editor de radio chilena. 
+            // Prompt v7 - Reducción TTS + Anti-Comas + Anclaje Temático + ESPAÑOL PERFECTO
+            const strictPrompt = `Eres un editor de radio chilena.
 Debes REDUCIR este texto a ${targetWords} palabras, **sin cambiar el tema ni los hechos**.
 
 📌 TEMA CENTRAL: "${reductionTopic}"
@@ -406,6 +434,9 @@ Debes REDUCIR este texto a ${targetWords} palabras, **sin cambiar el tema ni los
 - **Nunca** uses punto y coma, dos puntos, guiones largos o paréntesis.
 - **No agregues, interpretes ni relaciones** nada fuera del texto original.
 - Usa vocabulario chileno: "Carabineros", "municipalidad", "alcalde".
+- **PRESERVA TODOS LOS ACENTOS, TILDES Y Ñ**: México, Perú, Argentina, construcción, información, público, miércoles, año, también, además, política, económico, técnico, básico, análisis.
+- **NUNCA OMITAS ACENTOS**: México (no Mexico), Perú (no Peru), año (no ano), además (no ademas), también (no tambien).
+- **NUNCA REEMPLACES LA Ñ**: niño (no nino), camión (no camion), mañana (no manana).
 
 🎙️ ESTILO DE LOCUCIÓN:
 - El texto debe sonar como un locutor de radio pública chilena.
@@ -420,25 +451,27 @@ Debes REDUCIR este texto a ${targetWords} palabras, **sin cambiar el tema ni los
 ✅ SALIDA:
 - Texto continuo, sin saltos de línea.
 - Termina en una oración completa.
-- **SOLO el texto final sobre "${reductionTopic}". Nada más.**
+- **SOLO el texto final sobre "${reductionTopic}" con español perfecto. Nada más.**
 
 TEXTO A REDUCIR:
 "${humanizedContent}"`
 
             try {
                 const reprocessResponse = await fetchWithRetry(
-                    CHUTES_CONFIG.endpoints.chatCompletions,
+                    `${GEMINI_CONFIG.endpoint}?key=${GEMINI_CONFIG.apiKey}`,
                     {
                         method: 'POST',
-                        headers: getChutesHeaders(),
+                        headers: getGeminiHeaders(),
                         body: JSON.stringify({
-                            model: CHUTES_CONFIG.model,
-                            messages: [
-                                { role: 'system', content: 'Editor de radio chilena. REDUCE textos para TTS. CERO comas. Máx 14 palabras por oración. No inventes nada.' },
-                                { role: 'user', content: strictPrompt }
-                            ],
-                            max_tokens: Math.min(500, targetWords * 3),  // Espacio suficiente pero controlado
-                            temperature: 0.1  // Muy bajo: fidelidad, no creatividad
+                            contents: [{
+                                parts: [{
+                                    text: `Editor de radio chilena. REDUCE textos para TTS. CERO comas. Máx 14 palabras por oración. No inventes nada.\n\n${strictPrompt}`
+                                }]
+                            }],
+                            generationConfig: {
+                                maxOutputTokens: Math.min(500, targetWords * 3),
+                                temperature: 0.1  // Muy bajo: fidelidad, no creatividad
+                            }
                         })
                     },
                     { retries: 2, backoff: 2000 }
@@ -446,7 +479,7 @@ TEXTO A REDUCIR:
 
                 if (reprocessResponse.ok) {
                     const reprocessData = await reprocessResponse.json()
-                    const reducedContent = reprocessData.choices?.[0]?.message?.content?.trim()
+                    const reducedContent = reprocessData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
 
                     if (reducedContent) {
                         const reducedWordCount = reducedContent.split(' ').length
@@ -458,7 +491,7 @@ TEXTO A REDUCIR:
 
                         await logTokenUsage({
                             user_id: userId,
-                            servicio: 'chutes',
+                            servicio: 'gemini',
                             operacion: 'humanizacion_reprocess',
                             tokens_usados: reprocessTokens,
                             costo: reprocessCost
@@ -493,18 +526,20 @@ TEXTO A REDUCIR:
                 )
 
                 const retryResponse = await fetchWithRetry(
-                    CHUTES_CONFIG.endpoints.chatCompletions,
+                    `${GEMINI_CONFIG.endpoint}?key=${GEMINI_CONFIG.apiKey}`,
                     {
                         method: 'POST',
-                        headers: getChutesHeaders(),
+                        headers: getGeminiHeaders(),
                         body: JSON.stringify({
-                            model: CHUTES_CONFIG.model,
-                            messages: [
-                                { role: 'system', content: 'Eres un editor de radio chilena. Corrige textos con repeticiones para TTS.' },
-                                { role: 'user', content: correctivePrompt }
-                            ],
-                            max_tokens: Math.max(600, targetWords * 4),
-                            temperature: 0.7  // Más alto para mayor variación
+                            contents: [{
+                                parts: [{
+                                    text: `Eres un editor de radio chilena. Corrige textos con repeticiones para TTS.\n\n${correctivePrompt}`
+                                }]
+                            }],
+                            generationConfig: {
+                                maxOutputTokens: Math.max(600, targetWords * 4),
+                                temperature: 0.7  // Más alto para mayor variación
+                            }
                         })
                     },
                     { retries: 2, backoff: 2000 }
@@ -512,7 +547,7 @@ TEXTO A REDUCIR:
 
                 if (retryResponse.ok) {
                     const retryData = await retryResponse.json()
-                    const correctedContent = retryData.choices?.[0]?.message?.content?.trim()
+                    const correctedContent = retryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
 
                     if (correctedContent) {
                         // Verificar que la corrección es mejor
@@ -526,7 +561,7 @@ TEXTO A REDUCIR:
                             const retryTokens = Math.ceil((correctivePrompt.length + correctedContent.length) / 4)
                             await logTokenUsage({
                                 user_id: userId,
-                                servicio: 'chutes',
+                                servicio: 'gemini',
                                 operacion: 'humanizacion_anti_repeticion',
                                 tokens_usados: retryTokens,
                                 costo: calculateChutesAICost(retryTokens)
@@ -552,7 +587,7 @@ TEXTO A REDUCIR:
         // Registrar uso
         await logTokenUsage({
             user_id: userId,
-            servicio: 'chutes',
+            servicio: 'gemini',
             operacion: 'humanizacion',
             tokens_usados: totalTokens,
             costo: cost

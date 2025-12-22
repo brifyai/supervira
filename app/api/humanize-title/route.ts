@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CHUTES_CONFIG, getChutesHeaders, validateChutesConfig } from '@/lib/chutes-config';
 
+// Configuración directa de Google Gemini 2.5 Flash
+const GEMINI_CONFIG = {
+  apiKey: process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '',
+  model: 'gemini-2.0-flash-exp',
+  endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent'
+}
+
+// Función para obtener headers de Gemini
+const getGeminiHeaders = () => ({
+  'Content-Type': 'application/json'
+})
+
 /**
  * API Route: POST /api/humanize-title
  * 
@@ -30,47 +42,56 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Call Chutes AI API
-        const response = await fetch(CHUTES_CONFIG.endpoints.chatCompletions, {
+        // Call Gemini API directamente
+        const response = await fetch(`${GEMINI_CONFIG.endpoint}?key=${GEMINI_CONFIG.apiKey}`, {
             method: 'POST',
-            headers: getChutesHeaders(),
+            headers: getGeminiHeaders(),
             body: JSON.stringify({
-                model: CHUTES_CONFIG.model,
-                messages: [
-                    {
-                        role: 'user',
-                        content: `resume la siguiente noticia de manera breve:"${title}"`
-                    }
-                ],
-                stream: false,
-                max_tokens: 300,
-                temperature: 0.4
+                contents: [{
+                    parts: [{
+                        text: `Eres un locutor de radio profesional chileno. Transforma títulos en frases naturales para TTS con español perfecto.
+
+🎯 REGLA CRÍTICA: PRESERVAR ESPAÑOL PERFECTO PARA TTS
+- **MANTENER TODOS LOS ACENTOS Y TILDES**: México, Perú, Argentina, construcción, información, público, miércoles, año, también, además, política, económico, técnico, básico, análisis
+- **PRESERVAR LA Ñ**: niño, camión, mañana, año, muñeca, cañón, ñandú
+- **ACENTOS EN VOCALES TÓNICAS**: sé, dé, mí, tú, él, qué, quién, cómo, dónde, cuándo, porqué
+- **VERBOS IRREGULARES**: dijéramos, fuéramos, tuviéramos, hubiéramos, dijésemos
+- **NUNCA OMITIR ACENTOS**: México (no Mexico), Perú (no Peru), año (no ano), además (no ademas), también (no tambien)
+
+Transforma este título en una frase natural para radio, preservando todos los acentos, tildes y ñ para TTS perfecto: "${title}"`
+                    }]
+                }],
+                generationConfig: {
+                    maxOutputTokens: 100,
+                    temperature: 0.7
+                }
             })
         });
 
         if (!response.ok) {
-            console.error(`Error en Chutes API: ${response.status} ${response.statusText}`);
+            console.error(`Error en Gemini API: ${response.status} ${response.statusText}`);
             return NextResponse.json(
-                { error: `Error en API de Chutes: ${response.status}` },
+                { error: `Error en API de Gemini: ${response.status}` },
                 { status: response.status }
             );
         }
 
         const data = await response.json();
 
-        // Extract summary from response
-        const summary = data.choices?.[0]?.message?.content || '';
+        // Extract humanized title from response
+        const humanizedTitle = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
 
-        if (!summary) {
+        if (!humanizedTitle) {
             return NextResponse.json(
-                { error: 'No se pudo generar el resumen' },
+                { error: 'No se pudo generar el título humanizado' },
                 { status: 500 }
             );
         }
 
         return NextResponse.json({
             success: true,
-            summary
+            originalTitle: title,
+            humanizedTitle: humanizedTitle
         });
 
     } catch (error) {
