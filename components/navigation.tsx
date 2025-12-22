@@ -146,7 +146,7 @@ export function Navigation() {
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-full px-2 sm:px-4 lg:px-6">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3">
@@ -157,8 +157,8 @@ export function Navigation() {
           </Link>
 
           {/* Navigation Links */}
-          <div className="hidden lg:flex items-center flex-1 mx-6">
-            <div className="flex items-center gap-1 flex-wrap justify-center w-full">
+          <div className="hidden lg:flex items-center flex-1 mx-4">
+            <div className="flex items-center gap-1 justify-center w-full">
               {navigationItems.map((item) => {
                 const isActive = pathname === item.href
                 return (
@@ -166,13 +166,13 @@ export function Navigation() {
                     key={item.name}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors",
+                      "flex items-center gap-1 px-1.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
                       isActive
                         ? "bg-blue-50 text-blue-700"
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                     )}
                   >
-                    <item.icon className="h-3.5 w-3.5" />
+                    <item.icon className="h-3 w-3" />
                     <span>{item.name}</span>
                   </Link>
                 )
