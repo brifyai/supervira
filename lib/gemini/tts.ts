@@ -1,8 +1,8 @@
 /**
  * GEMINI 2.5 PRO PREVIEW TTS - TTS MODULE
  *
- * Este módulo proporciona funciones para usar Gemini 2.5 Pro Preview TTS para generar
- * audio desde texto (Text-to-Speech), reemplazando la funcionalidad de VoiceMaker.
+ * Este módulo proporciona funciones para usar Google Cloud Text-to-Speech API
+ * con el modelo Gemini 2.5 Pro Preview TTS para generar audio desde texto.
  *
  * ⚠️ SERVER-ONLY: Este archivo NO puede ser importado por componentes cliente
  */
@@ -11,14 +11,13 @@ import "server-only";
 
 import {
   GEMINI_CONFIG,
-  getGeminiUrl,
-  getGeminiHeaders,
+  getGeminiTTSUrl,
   validateGeminiConfig,
   calculateGeminiCost,
 } from "./config";
 
 /**
- * Interfaz para la solicitud de TTS a Gemini
+ * Interfaz para la solicitud de TTS a Google Cloud
  */
 interface GeminiTTSRequest {
   text: string;
@@ -44,27 +43,43 @@ interface GeminiTTSResponse {
 }
 
 /**
- * Interfaz para la configuración de voz
+ * Interfaz para la configuración de voz (formato Google Cloud TTS)
  */
-interface VoiceSettings {
-  pitch: number; // -20 a 20
-  speed: number; // 0.25 a 4.0
-  volume: number; // -96.0 a 16.0 dB
-  sampleRate: number; // Hz
+interface GoogleVoiceConfig {
+  languageCode: string;
+  name: string;
+  model_name: string;
+}
+
+/**
+ * Interfaz para el input de TTS
+ */
+interface GoogleTTSInput {
+  text?: string;
+  prompt?: string;
+}
+
+/**
+ * Interfaz para audio config
+ */
+interface GoogleAudioConfig {
+  audioEncoding: string;
+  speakingRate?: number;
+  pitch?: number;
+  volumeGainDb?: number;
 }
 
 /**
  * Configuraciones de voz por defecto
  */
-const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
+const DEFAULT_VOICE_SETTINGS = {
   pitch: 0,
   speed: 1.0,
   volume: 0,
-  sampleRate: 24000,
 };
 
 /**
- * Mapeo de voces de Gemini
+ * Mapeo de voces de Google Cloud TTS (Gemini 2.5 Pro Preview TTS)
  */
 export const GEMINI_TTS_VOICES = {
   MALE_1: {
@@ -76,6 +91,7 @@ export const GEMINI_TTS_VOICES = {
     avgPauseMs: 220,
     pitchRange: { min: -10, max: 10, default: 0 },
     speedRange: { min: 0.8, max: 1.2, default: 1.0 },
+    googleVoiceName: "es-CL-Neural2-A", // Nombre real en Google Cloud
   },
   MALE_2: {
     id: "es-CL-male-2",
@@ -86,6 +102,7 @@ export const GEMINI_TTS_VOICES = {
     avgPauseMs: 200,
     pitchRange: { min: -10, max: 10, default: 0 },
     speedRange: { min: 0.8, max: 1.2, default: 1.0 },
+    googleVoiceName: "es-CL-Neural2-B", // Nombre real en Google Cloud
   },
   MALE_3: {
     id: "es-CL-male-3",
@@ -96,6 +113,7 @@ export const GEMINI_TTS_VOICES = {
     avgPauseMs: 180,
     pitchRange: { min: -5, max: 15, default: 5 },
     speedRange: { min: 0.9, max: 1.3, default: 1.05 },
+    googleVoiceName: "es-CL-Neural2-C", // Nombre real en Google Cloud
   },
   FEMALE_1: {
     id: "es-CL-female-1",
@@ -106,6 +124,7 @@ export const GEMINI_TTS_VOICES = {
     avgPauseMs: 250,
     pitchRange: { min: -5, max: 15, default: 0 },
     speedRange: { min: 0.75, max: 1.25, default: 1.0 },
+    googleVoiceName: "es-CL-Neural2-D", // Nombre real en Google Cloud
   },
   FEMALE_2: {
     id: "es-CL-female-2",
@@ -116,6 +135,7 @@ export const GEMINI_TTS_VOICES = {
     avgPauseMs: 210,
     pitchRange: { min: -5, max: 15, default: 0 },
     speedRange: { min: 0.75, max: 1.25, default: 1.0 },
+    googleVoiceName: "es-CL-Neural2-E", // Nombre real en Google Cloud
   },
   FEMALE_3: {
     id: "es-CL-female-3",
@@ -126,6 +146,7 @@ export const GEMINI_TTS_VOICES = {
     avgPauseMs: 200,
     pitchRange: { min: -10, max: 10, default: 0 },
     speedRange: { min: 0.85, max: 1.15, default: 1.0 },
+    googleVoiceName: "es-CL-Neural2-F", // Nombre real en Google Cloud
   },
   DEFAULT: {
     id: "es-CL-default",
@@ -136,11 +157,12 @@ export const GEMINI_TTS_VOICES = {
     avgPauseMs: 200,
     pitchRange: { min: -10, max: 10, default: 0 },
     speedRange: { min: 0.75, max: 1.25, default: 1.0 },
+    googleVoiceName: "es-CL-Neural2-B", // Usar voz masculina estándar por defecto
   },
 };
 
 /**
- * Función principal para generar audio con Gemini 2.5 Pro Preview TTS
+ * Función principal para generar audio con Google Cloud Text-to-Speech API
  */
 export async function generateAudioWithGemini(
   request: GeminiTTSRequest,
@@ -156,7 +178,7 @@ export async function generateAudioWithGemini(
 
     const {
       text,
-      voice = "es-CL-default",
+      voice = "es-CL-male-2",
       speed = DEFAULT_VOICE_SETTINGS.speed,
       pitch = DEFAULT_VOICE_SETTINGS.pitch,
       volume = DEFAULT_VOICE_SETTINGS.volume,
@@ -171,116 +193,106 @@ export async function generateAudioWithGemini(
       };
     }
 
-    const model = GEMINI_CONFIG.models.tts;
-    const endpoint = getGeminiUrl(GEMINI_CONFIG.endpoints.textToSpeech(model));
+    // Obtener la configuración de la voz
+    const voiceConfig =
+      Object.values(GEMINI_TTS_VOICES).find((v) => v.id === voice) ||
+      GEMINI_TTS_VOICES.DEFAULT;
+
+    const modelName = "gemini-2.5-pro-preview-tts";
+    const endpoint = getGeminiTTSUrl();
 
     console.log(
-      `🔄 Generando audio con Gemini 2.5 Pro Preview TTS para texto (${text.length} caracteres)...`,
+      `🔄 Generando audio con Gemini 2.5 Pro Preview TTS (${text.length} caracteres)...`,
     );
     console.log(
-      `🗣️ Voz: ${voice}, Velocidad: ${speed}, Tono: ${pitch}, Volumen: ${volume}`,
+      `🗣️ Voz: ${voiceConfig.name} (${voiceConfig.googleVoiceName}), Velocidad: ${speed}, Tono: ${pitch}, Volumen: ${volume}`,
     );
 
-    // Construir el payload para la API de Gemini
-    // Nota: Gemini 2.5 Pro Preview TTS usa generateContent para generar audio
+    // Construir el payload para Google Cloud TTS API
     const payload = {
-      contents: [
-        {
-          parts: [
-            {
-              text: `Genera el audio en español chileno del siguiente texto de noticia: "${text}"`,
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 2048,
-        responseMimeType: "audio/mpeg", // Solicitar audio directamente
-        responseModalities: ["AUDIO"],
+      input: {
+        text: text,
       },
-      voiceSettings: {
-        pitch: pitch,
-        speed: speed,
-        volume: volume,
+      voice: {
         languageCode: language,
-      },
+        name: voiceConfig.googleVoiceName,
+        model_name: modelName,
+      } as GoogleVoiceConfig,
+      audioConfig: {
+        audioEncoding: "LINEAR16",
+        speakingRate: speed,
+        pitch: pitch,
+        volumeGainDb: volume,
+      } as GoogleAudioConfig,
     };
+
+    console.log(
+      "[DEBUG] Payload enviado a Google Cloud TTS:",
+      JSON.stringify(payload, null, 2),
+    );
 
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: getGeminiHeaders(),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GEMINI_CONFIG.apiKey}`,
+        "x-goog-user-project": process.env.GOOGLE_PROJECT_ID || "",
+      },
       body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ Error Gemini TTS API (${response.status}):`, errorText);
+      console.error(
+        `❌ Error Google Cloud TTS API (${response.status}):`,
+        errorText,
+      );
 
       return {
         success: false,
-        error: `Error en Gemini TTS API: ${response.status} - ${errorText}`,
+        error: `Error en Google Cloud TTS API: ${response.status} - ${errorText}`,
         voice,
       };
     }
 
     const data = await response.json();
 
-    // Extraer el audio de la respuesta
-    // Gemini 2.5 Pro Preview TTS puede devolver audio en diferentes formatos
-    let audioData: string | Buffer;
+    // Extraer el audio de la respuesta (formato Google Cloud TTS)
+    let audioData: string;
     let duration: number | undefined;
 
-    if (data.candidates?.[0]?.content?.parts?.[0]?.inlineData) {
-      // Audio en formato base64 inline
-      const inlineData = data.candidates[0].content.parts[0].inlineData;
-      audioData = inlineData.data;
-      duration = inlineData.durationMs
-        ? inlineData.durationMs / 1000
-        : undefined;
-    } else if (data.candidates?.[0]?.content?.parts?.[0]?.audio) {
-      // Audio directo
-      audioData = data.candidates[0].content.parts[0].audio;
-    } else if (data.audio) {
-      // Audio en nivel superior
-      audioData = data.audio;
+    if (data.audioContent) {
+      // Audio en formato base64 (LINEAR16)
+      audioData = data.audioContent;
     } else {
-      console.error("❌ Gemini TTS API no devolvió audio");
+      console.error("❌ Google Cloud TTS API no devolvió audio");
       return {
         success: false,
-        error: "Gemini TTS API no devolvió audio",
+        error: "Google Cloud TTS API no devolvió audio",
         voice,
       };
     }
 
-    // Convertir a Buffer si es base64
-    const audioBuffer =
-      typeof audioData === "string"
-        ? Buffer.from(audioData, "base64")
-        : audioData;
+    // Convertir a Buffer
+    const audioBuffer = Buffer.from(audioData, "base64");
 
     // Calcular tokens y costo
     const tokensUsed = Math.ceil(text.length / 4); // Estimación
     const cost = calculateGeminiCost(tokensUsed, "tts");
 
-    // Estimar duración si no se proporcionó
-    if (!duration) {
-      // Estimación basada en velocidad y longitud de texto
-      const wordsPerSecond = 2.7 * speed; // ~160 WPM base = 2.7 palabras/segundo
-      const words = text.split(/\s+/).length;
-      duration = words / wordsPerSecond;
-    }
+    // Estimar duración para LINEAR16 (16kHz)
+    // Para LINEAR16: 1 segundo = 32000 bytes (16 bits * 2 canales * 16000 Hz / 8)
+    const bytesPerSecond = 32000;
+    duration = audioBuffer.length / bytesPerSecond;
 
     console.log(
-      `✅ Audio generado exitosamente (${duration?.toFixed(2)}s, ${tokensUsed} tokens, $${cost?.toFixed(6)})`,
+      `✅ Audio generado exitosamente (${duration.toFixed(2)}s, ${tokensUsed} tokens, $${cost.toFixed(6)})`,
     );
 
     return {
       success: true,
       audioBuffer,
-      audioData: typeof audioData === "string" ? audioData : undefined,
+      audioData,
       duration,
       tokens: tokensUsed,
       cost,
@@ -297,7 +309,7 @@ export async function generateAudioWithGemini(
 }
 
 /**
- * Genera audio para una noticia humanizada usando Gemini 2.5 Pro Preview TTS
+ * Genera audio para una noticia humanizada
  */
 export async function generateNewsAudio(
   text: string,
@@ -310,7 +322,7 @@ export async function generateNewsAudio(
   },
 ): Promise<GeminiTTSResponse> {
   const {
-    voice = "es-CL-default",
+    voice = "es-CL-male-2",
     speed = DEFAULT_VOICE_SETTINGS.speed,
     pitch = DEFAULT_VOICE_SETTINGS.pitch,
     volume = DEFAULT_VOICE_SETTINGS.volume,
@@ -393,7 +405,7 @@ export function getAvailableVoices() {
  */
 export function isValidVoice(voiceId: string): boolean {
   return (
-    voiceId in GEMINI_TTS_VOICES || voiceId === GEMINI_CONFIG.voices.default
+    voiceId in GEMINI_TTS_VOICES || voiceId === GEMINI_TTS_VOICES.DEFAULT.id
   );
 }
 
@@ -428,7 +440,6 @@ export function normalizeVoiceSettings(
       -96,
       Math.min(16, settings.volume ?? DEFAULT_VOICE_SETTINGS.volume),
     ),
-    sampleRate: settings.sampleRate ?? DEFAULT_VOICE_SETTINGS.sampleRate,
   };
 }
 

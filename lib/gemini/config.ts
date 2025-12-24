@@ -20,6 +20,9 @@ export const GEMINI_CONFIG = {
   // Base URL para API de Gemini
   baseUrl: "https://generativelanguage.googleapis.com/v1beta",
 
+  // Base URL para API de Google Cloud Text-to-Speech
+  ttsBaseUrl: "https://texttospeech.googleapis.com/v1",
+
   // Modelos disponibles
   models: {
     chat: "gemini-2.0-flash-exp", // Modelo para reescribir noticias
@@ -30,8 +33,7 @@ export const GEMINI_CONFIG = {
   endpoints: {
     chatCompletions: (model: string) =>
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    textToSpeech: (model: string) =>
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, // Gemini usa el mismo endpoint para generar contenido multimodal
+    textToSpeech: "text:synthesize", // Endpoint específico de Google Cloud TTS
   },
 
   // Configuraciones por defecto para diferentes tipos de peticiones
@@ -66,10 +68,15 @@ export const getGeminiHeaders = (contentType: string = "application/json") => {
   };
 };
 
-// Función para construir la URL con API key
+// Función para construir la URL con API key (para chat)
 export const getGeminiUrl = (endpoint: string): string => {
   const separator = endpoint.includes("?") ? "&" : "?";
   return `${endpoint}${separator}key=${GEMINI_CONFIG.apiKey}`;
+};
+
+// Función para construir la URL de TTS (usa Authorization header)
+export const getGeminiTTSUrl = (): string => {
+  return `${GEMINI_CONFIG.ttsBaseUrl}/${GEMINI_CONFIG.endpoints.textToSpeech}`;
 };
 
 // Función para validar que la configuración está completa
