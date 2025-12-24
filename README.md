@@ -7,7 +7,7 @@ VIRA es una plataforma SaaS que permite a radios generar noticieros de audio aut
 - **Scraping inteligente** de noticias desde múltiples fuentes
 - **IA Directora** que planifica la estructura óptima del noticiero
 - **Humanización de texto** para sonido natural en TTS
-- **Text-to-Speech** con Gemini 2.5 Flash TTS (voces en español chileno)
+- **Text-to-Speech** con Gemini 2.5 Pro Preview TTS (voces en español chileno)
 - **Timeline editable** con drag & drop
 - **Sistema multi-tenant** (admin → usuarios)
 
@@ -47,7 +47,7 @@ CODIGO_FUENTE/
 
 - **Frontend**: Next.js 14, React, TailwindCSS, shadcn/ui
 - **Backend**: Next.js API Routes, Supabase
-- **IA**: Gemini 2.5 Flash (Google) para generación de contenido y TTS
+- **IA**: Gemini 2.5 Flash para contenido, Gemini 2.5 Pro Preview TTS para voz
 - **Audio**: FFmpeg para procesamiento
 
 ## 📖 Documentación

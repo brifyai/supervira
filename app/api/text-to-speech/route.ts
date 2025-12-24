@@ -5,7 +5,7 @@ import { getDownloadUrl } from "@/lib/s3";
 // Real síntesis de voz usando múltiples proveedores
 interface TTSRequest {
   text: string;
-  provider?: "gemini" | "local" | "auto"; // Gemini es el proveedor principal
+  provider?: "gemini" | "local" | "auto"; // Gemini 2.5 Pro Preview TTS es el proveedor principal
   voice?: string;
   speed?: number;
   pitch?: number;
@@ -108,14 +108,14 @@ export async function POST(request: NextRequest) {
     console.log(`🎙️ Iniciando síntesis de voz: ${text.length} caracteres`);
     const startTime = Date.now();
 
-    // PRIORIDAD 1: Google Gemini TTS API (Cloud)
+    // PRIORIDAD 1: Google Gemini 2.5 Pro Preview TTS API (Cloud)
     const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
 
     if (geminiApiKey) {
       try {
-        console.log("🔄 Usando Google Gemini TTS API...");
+        console.log("🔄 Usando Google Gemini 2.5 Pro Preview TTS API...");
         console.log(
-          `🗣️ Voice requested: ${voice || "gemini-male-2 (default)"}`,
+          `🗣️ Voice requested: ${voice || "es-CL-default (default)"}`,
         );
 
         const { GeminiTTSProvider, GEMINI_VOICES } =
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
         const processingTime = Date.now() - startTime;
 
         console.log(
-          `✅ Audio generado exitosamente con Gemini TTS: ${processingTime}ms`,
+          `✅ Audio generado exitosamente con Gemini 2.5 Pro Preview TTS: ${processingTime}ms`,
         );
         console.log(`📁 Guardado en: ${filePath}`);
 
@@ -174,14 +174,14 @@ export async function POST(request: NextRequest) {
             textLength: text.length,
             processingTime,
             estimatedCost: result.cost || 0,
-            provider: "Google Gemini TTS API",
-            configuredProviders: ["GeminiTTS"],
+            provider: "Google Gemini 2.5 Pro Preview TTS",
+            configuredProviders: ["Gemini 2.5 Pro Preview TTS"],
             synthesizedAt: new Date().toISOString(),
           },
         });
       } catch (geminiError) {
         console.error(
-          "❌ Gemini TTS Error:",
+          "❌ Gemini 2.5 Pro Preview TTS Error:",
           geminiError instanceof Error
             ? geminiError.message
             : "Error desconocido",
