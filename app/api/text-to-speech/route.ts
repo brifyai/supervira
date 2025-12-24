@@ -1,11 +1,13 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { TTSProviderFactory } from "@/lib/tts-providers";
 import { getDownloadUrl } from "@/lib/s3";
 
-// Real síntesis de voz usando múltiples proveedores
+// Real síntesis de voz usando Gemini 2.5 Pro Preview TTS
 interface TTSRequest {
   text: string;
-  provider?: "gemini" | "local" | "auto"; // Gemini 2.5 Pro Preview TTS es el proveedor principal
+  provider?: "gemini" | "local" | "auto";
   voice?: string;
   speed?: number;
   pitch?: number;
@@ -106,169 +108,120 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🎙️ Iniciando síntesis de voz: ${text.length} caracteres`);
+    console.log(
+      "[DEBUG TTS] Request data:",
+      JSON.stringify({
+        provider,
+        voice,
+        textLength: text.length,
+        hasGeminiKey: !!process.env.GOOGLE_GEMINI_API_KEY,
+        hasProjectId: !!process.env.GOOGLE_PROJECT_ID,
+      }),
+    );
     const startTime = Date.now();
 
-    console.log("[DEBUG TTS] Request data:", JSON.stringify({
-      provider,
-      voice,
-      textLength: text.length,
-      hasGeminiKey: !!process.env.GOOGLE_GEMINI_API_KEY,
-      hasProjectId: !!process.env.GOOGLE_PROJECT_ID
-    }));
-
-    // PRIORIDAD 1: Google Gemini 2.5 Pro Preview TTS API (Cloud)
+    // ✅ Solo Gemini TTS API (Google Cloud)
     const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
 
-    if (geminiApiKey) {
-      try {
-        console.log("🔄 Usando Google Gemini 2.5 Pro Preview TTS API...");
-        console.log(
-          `🗣️ Voice requested: ${voice || "es-CL-default (default)"}`,
-        );
-        console.log("[DEBUG TTS] Gemini API Key exists:", !!geminiApiKey);
-        console.log("[DEBUG TTS] Project ID:", process.env.GOOGLE_PROJECT_ID);
-
-        const { GeminiTTSProvider, GEMINI_VOICES } =
-          await import("@/lib/tts-providers");
-        const geminiProvider = new GeminiTTSProvider(geminiApiKey);
-
-        // Determinar voz a usar
-        const voiceId = voice || GEMINI_VOICES.MALE_2.id;
-
-        const result = await geminiProvider.synthesize(text, {
-          voiceId: voiceId,
-          speed: requestData.speed,
-          pitch: requestData.pitch,
-          volume: requestData.volume,
-          style: requestData.style || "natural", // ✅ NUEVO: Estilo de voz
-        });
-
-        if (!result.success) {
-          throw new Error("Gemini TTS synthesis failed");
-        }
-
-        // Guardar localmente en public/generated-audio/
-        const fs = require("fs");
-        const path = require("path");
-
-        const audioDir = path.join(process.cwd(), "public", "generated-audio");
-        if (!fs.existsSync(audioDir)) {
-          fs.mkdirSync(audioDir, { recursive: true });
-        }
-
-        const timestamp = Date.now();
-        const fileName = `tts_${timestamp}.mp3`;
-        const filePath = path.join(audioDir, fileName);
-
-        // Guardar el audio generado
-        if (result.audioData) {
-          fs.writeFileSync(filePath, Buffer.from(result.audioData));
-        }
-
-        const audioUrl = `/generated-audio/${fileName}`;
-        const processingTime = Date.now() - startTime;
-
-        console.log(
-          `✅ Audio generado exitosamente con Gemini 2.5 Pro Preview TTS: ${processingTime}ms`,
-        );
-        console.log(`📁 Guardado en: ${filePath}`);
-
-        return NextResponse.json({
-          success: true,
-          provider: "gemini",
-          voice: voiceId,
-          duration: result.duration || 0,
-          audioUrl: audioUrl,
-          format: "mp3",
-          metadata: {
-            textLength: text.length,
-            processingTime,
-            estimatedCost: result.cost || 0,
-            provider: "Google Gemini 2.5 Pro Preview TTS",
-            configuredProviders: ["Gemini 2.5 Pro Preview TTS"],
-            synthesizedAt: new Date().toISOString(),
-          },
-        });
-      } catch (geminiError) {
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            "❌ Gemini 2.5 Pro Preview TTS Error:",
-            geminiError instanceof Error
-              ? geminiError.message
-              : "Error desconocido",
-          );
-          console.log("[DEBUG TTS] Error details:", errorText);
-          console.log("🔄 Intentando con proveedores alternativos...");
-      }
-    } else {
-      console.warn(
-        "⚠️ GOOGLE_GEMINI_API_KEY no configurada, intentando proveedores alternativos...",
-      );
-    }
-
-    // Intentar con proveedores alternativos si falla Gemini
-    const providerToUse =
-      provider === "auto"
-        ? TTSProviderFactory.getBestProvider()
-        : TTSProviderFactory.getProvider(provider);
-
-    if (!providerToUse) {
+    if (!geminiApiKey) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "No hay proveedores de TTS disponibles. Asegúrate de que el servidor local esté corriendo en localhost:5000 o configura ElevenLabs/Azure.",
+            "GOOGLE_GEMINI_API_KEY no configurada. Por favor, configura la variable de entorno.",
         },
-        { status: 503 },
+        { status: 500 },
       );
     }
 
-    console.log(`🔄 Usando proveedor: ${providerToUse.name}`);
+    try {
+      console.log("🔄 Usando Google Gemini 2.5 Pro Preview TTS API...");
+      console.log(`🗣️ Voice requested: ${voice || "es-CL-male-2 (default)"}`);
 
-    // Mapear opciones según el proveedor
-    const providerOptions = getProviderOptions(
-      providerToUse.name.toLowerCase(),
-      requestData,
-    );
+      const { GeminiTTSProvider, GEMINI_VOICES } =
+        await import("@/lib/tts-providers");
+      const geminiProvider = new GeminiTTSProvider(geminiApiKey);
 
-    // Sintetizar voz
-    const result = await providerToUse.synthesize(text, providerOptions);
+      // Determinar voz a usar
+      const voiceId = voice || GEMINI_VOICES.MALE_2.id;
+      console.log("[DEBUG TTS] Voice ID:", voiceId);
 
-    if (!result.success) {
-      throw new Error(`Error en síntesis con ${providerToUse.name}`);
+      const result = await geminiProvider.synthesize(text, {
+        voiceId: voiceId,
+        speed: requestData.speed,
+        pitch: requestData.pitch,
+        volume: requestData.volume,
+        style: requestData.style || "natural", // ✅ NUEVO: Estilo de voz
+      });
+
+      if (!result.success) {
+        throw new Error("Gemini TTS synthesis failed");
+      }
+
+      // Guardar localmente en public/generated-audio/
+      const fs = require("fs");
+      const path = require("path");
+
+      const audioDir = path.join(process.cwd(), "public", "generated-audio");
+      if (!fs.existsSync(audioDir)) {
+        fs.mkdirSync(audioDir, { recursive: true });
+      }
+
+      const timestamp = Date.now();
+      const fileName = `tts_${timestamp}.mp3`;
+      const filePath = path.join(audioDir, fileName);
+
+      // Guardar el audio generado
+      if (result.audioData) {
+        fs.writeFileSync(filePath, Buffer.from(result.audioData));
+      }
+
+      const audioUrl = `/generated-audio/${fileName}`;
+      const processingTime = Date.now() - startTime;
+
+      console.log(
+        `✅ Audio generado exitosamente con Gemini TTS: ${processingTime}ms`,
+      );
+      console.log(`📁 Guardado en: ${filePath}`);
+
+      return NextResponse.json({
+        success: true,
+        provider: "gemini",
+        voice: voiceId,
+        duration: result.duration || 0,
+        audioUrl: audioUrl,
+        format: "mp3",
+        metadata: {
+          textLength: text.length,
+          processingTime,
+          estimatedCost: result.cost || 0,
+          provider: "Google Gemini 2.5 Pro Preview TTS",
+          configuredProviders: ["Gemini TTS"],
+          synthesizedAt: new Date().toISOString(),
+        },
+      });
+    } catch (geminiError) {
+      console.error(
+        "❌ Gemini TTS Error:",
+        geminiError instanceof Error
+          ? geminiError.message
+          : "Error desconocido",
+      );
+
+      const errorMessage =
+        geminiError instanceof Error
+          ? geminiError.message
+          : "Error desconocido al generar audio con Gemini TTS";
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorMessage,
+          details: geminiError instanceof Error ? geminiError.stack : undefined,
+        },
+        { status: 500 },
+      );
     }
-
-    // Obtener URL de descarga si se subió a S3
-    const audioUrl = result.s3Key
-      ? await getDownloadUrl(result.s3Key)
-      : result.audioUrl;
-
-    const processingTime = Date.now() - startTime;
-
-    console.log(
-      `✅ Audio generado exitosamente con ${providerToUse.name}: ${processingTime}ms`,
-    );
-
-    return NextResponse.json({
-      success: true,
-      provider: result.provider,
-      voice: result.voice,
-      duration: result.duration,
-      audioUrl: audioUrl,
-      s3Key: result.s3Key,
-      format: format,
-      metadata: {
-        textLength: text.length,
-        processingTime,
-        estimatedCost: result.cost,
-        provider: providerToUse.name,
-        configuredProviders: TTSProviderFactory.getAvailableProviders().map(
-          (p) => p.name,
-        ),
-        synthesizedAt: new Date().toISOString(),
-      },
-    });
   } catch (error) {
     console.error("TTS API Error:", error);
     return NextResponse.json(
@@ -292,25 +245,23 @@ export async function GET() {
     const configuredProviders = TTSProviderFactory.getAvailableProviders();
     const bestProvider = TTSProviderFactory.getBestProvider();
 
-    const providersInfo = allProviders.map((provider) => ({
-      name: provider.name,
-      id: provider.name.toLowerCase().replace(" ", ""),
-      configured: provider.isConfigured(),
-      estimatedCost: provider.estimateCost(1000), // Costo por 1000 caracteres
-      recommended: provider.name === bestProvider.name,
+    // ✅ Solo mostrar voces de Gemini TTS
+    const { GEMINI_VOICES } = await import("@/lib/tts-providers");
+
+    const geminiVoices = Object.values(GEMINI_VOICES).map((voice) => ({
+      id: voice.id,
+      name: voice.name,
+      language: voice.language,
+      type: "gemini",
+      isUserVoice: false,
+      wpm: voice.wpm,
+      gender: voice.gender,
     }));
 
     return NextResponse.json({
       success: true,
-      providers: providersInfo,
-      totalProviders: allProviders.length,
-      configuredProviders: configuredProviders.length,
-      bestProvider: bestProvider.name,
-      notes: {
-        auto: 'Usa "auto" como provider para selección automática del mejor proveedor disponible',
-        fallback:
-          "Edge TTS se usa como fallback gratuito si otros proveedores no están configurados",
-      },
+      voices: geminiVoices,
+      provider: "gemini-2.5-pro-preview-tts",
     });
   } catch (error) {
     console.error("Error getting TTS providers info:", error);
