@@ -108,6 +108,14 @@ export async function POST(request: NextRequest) {
     console.log(`🎙️ Iniciando síntesis de voz: ${text.length} caracteres`);
     const startTime = Date.now();
 
+    console.log("[DEBUG TTS] Request data:", JSON.stringify({
+      provider,
+      voice,
+      textLength: text.length,
+      hasGeminiKey: !!process.env.GOOGLE_GEMINI_API_KEY,
+      hasProjectId: !!process.env.GOOGLE_PROJECT_ID
+    }));
+
     // PRIORIDAD 1: Google Gemini 2.5 Pro Preview TTS API (Cloud)
     const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
 
@@ -117,6 +125,8 @@ export async function POST(request: NextRequest) {
         console.log(
           `🗣️ Voice requested: ${voice || "es-CL-default (default)"}`,
         );
+        console.log("[DEBUG TTS] Gemini API Key exists:", !!geminiApiKey);
+        console.log("[DEBUG TTS] Project ID:", process.env.GOOGLE_PROJECT_ID);
 
         const { GeminiTTSProvider, GEMINI_VOICES } =
           await import("@/lib/tts-providers");
@@ -180,13 +190,16 @@ export async function POST(request: NextRequest) {
           },
         });
       } catch (geminiError) {
-        console.error(
-          "❌ Gemini 2.5 Pro Preview TTS Error:",
-          geminiError instanceof Error
-            ? geminiError.message
-            : "Error desconocido",
-        );
-        console.log("🔄 Intentando con proveedores alternativos...");
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(
+            "❌ Gemini 2.5 Pro Preview TTS Error:",
+            geminiError instanceof Error
+              ? geminiError.message
+              : "Error desconocido",
+          );
+          console.log("[DEBUG TTS] Error details:", errorText);
+          console.log("🔄 Intentando con proveedores alternativos...");
       }
     } else {
       console.warn(

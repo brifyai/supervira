@@ -208,6 +208,16 @@ export async function generateAudioWithGemini(
       `🗣️ Voz: ${voiceConfig.name} (${voiceConfig.googleVoiceName}), Velocidad: ${speed}, Tono: ${pitch}, Volumen: ${volume}`,
     );
 
+    console.log("[DEBUG TTS] Configuración de Gemini:", {
+      hasApiKey: !!GEMINI_CONFIG.apiKey,
+      apiKeyLength: GEMINI_CONFIG.apiKey?.length || 0,
+      projectId: process.env.GOOGLE_PROJECT_ID,
+      voice: voiceConfig.googleVoiceName,
+      model: modelName,
+      language: language,
+      endpoint: endpoint,
+    });
+
     // Construir el payload para Google Cloud TTS API
     const payload = {
       input: {
@@ -231,13 +241,22 @@ export async function generateAudioWithGemini(
       JSON.stringify(payload, null, 2),
     );
 
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${GEMINI_CONFIG.apiKey}`,
+      "x-goog-user-project": process.env.GOOGLE_PROJECT_ID || "",
+    };
+
+    console.log("[DEBUG TTS] Headers:", {
+      hasAuth: !!headers.Authorization,
+      authLength: headers.Authorization?.length || 0,
+      hasProjectId: !!headers["x-goog-user-project"],
+      projectId: headers["x-goog-user-project"],
+    });
+
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${GEMINI_CONFIG.apiKey}`,
-        "x-goog-user-project": process.env.GOOGLE_PROJECT_ID || "",
-      },
+      headers,
       body: JSON.stringify(payload),
     });
 
@@ -247,6 +266,12 @@ export async function generateAudioWithGemini(
         `❌ Error Google Cloud TTS API (${response.status}):`,
         errorText,
       );
+      console.error("[DEBUG TTS] Respuesta completa:", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        errorText: errorText,
+      });
 
       return {
         success: false,
