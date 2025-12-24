@@ -45,14 +45,14 @@ INSERT INTO "fuentes_final" ("region", "nombre_fuente", "url", "rss_url", "esta_
     ('Nacional', 'BioBioChile', 'https://www.biobiochile.cl', 'https://www.biobiochile.cl/especial/rss/index.xml', true, 'web'),
     ('Nacional', 'Cooperativa', 'https://www.cooperativa.cl', NULL, true, 'web'),
     ('Nacional', '24 Horas', 'https://www.24horas.cl', NULL, true, 'web'),
-    
+
     -- Fuentes Metropolitanas
     ('Metropolitana de Santiago', 'El Mostrador', 'https://www.elmostrador.cl', NULL, true, 'web'),
     ('Metropolitana de Santiago', 'Radio ADN', 'https://www.adn.cl', NULL, true, 'web'),
-    
+
     -- Fuentes Valparaíso
     ('Valparaíso', 'El Mercurio de Valparaíso', 'https://www.mercuriovalpo.cl', NULL, true, 'web'),
-    
+
     -- Fuentes Biobío
     ('Biobío', 'Diario Concepción', 'https://www.diarioconcepcion.cl', NULL, true, 'web')
 ON CONFLICT (url) DO NOTHING;
@@ -66,7 +66,8 @@ INSERT INTO "system_config" ("key", "value", "description") VALUES
     ('auto_clean_days', '7', 'Días después de los cuales se limpian noticias antiguas'),
     ('cleanup_enabled', 'true', 'Habilitar limpieza automática de noticias'),
     ('max_news_per_newscast', '10', 'Máximo de noticias por noticiero'),
-    ('default_voice_provider', 'voicemaker', 'Proveedor TTS por defecto')
+    ('default_voice_provider', 'gemini', 'Proveedor TTS por defecto (Gemini 2.5 Flash)'),
+    ('default_ai_provider', 'gemini', 'Proveedor IA para procesamiento de texto (Gemini 2.5 Flash)')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 -- ============================================
@@ -87,7 +88,7 @@ ON CONFLICT (email) DO NOTHING;
 -- FIN DEL SEED
 -- ============================================
 -- Para verificar que todo se insertó correctamente:
--- 
+--
 -- SELECT COUNT(*) FROM configuraciones_regiones;  -- Debería ser 17
 -- SELECT COUNT(*) FROM fuentes_final;             -- Debería ser 9+
 -- SELECT COUNT(*) FROM system_config;             -- Debería ser 4

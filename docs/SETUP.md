@@ -6,7 +6,7 @@
 - Yarn
 - FFmpeg instalado y en PATH
 - Cuenta Supabase
-- API Key VoiceMaker
+- API Key Google Gemini (para IA y TTS)
 - API Key ScrapingBee
 
 ## 1. Clonar y Dependencias
@@ -27,14 +27,11 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=xxx
 SUPABASE_SERVICE_ROLE_KEY=xxx
 
-# TTS
-VOICEMAKER_API_KEY=xxx
+# IA y TTS (Gemini 2.5 Flash)
+GOOGLE_GEMINI_API_KEY=xxx
 
 # Scraping
 SCRAPINGBEE_API_KEY=xxx
-
-# IA
-CHUTES_API_KEY=xxx
 
 # Opcional
 CRON_SECRET=xxx
@@ -69,4 +66,4 @@ yarn start
 |----------|----------|
 | Error audio | Verificar FFmpeg instalado |
 | Scraping falla | Revisar ScrapingBee credits |
-| TTS error | Verificar VoiceMaker API key |
+| TTS error | Verificar Google Gemini API key |
