@@ -52,24 +52,51 @@ export function VoiceSelector({
   // Cargar voces
   useEffect(() => {
     async function loadVoices() {
+      console.log("[VoiceSelector] Iniciando carga de voces...");
       setLoading(true);
       try {
         const response = await fetch("/api/text-to-speech/voices");
+        console.log("[VoiceSelector] Response status:", response.status);
         if (response.ok) {
           const data = await response.json();
+          console.log(
+            "[VoiceSelector] Data recibida:",
+            JSON.stringify(data, null, 2),
+          );
           let loadedVoices = data.voices || [];
 
           if (showOnlyUserVoices) {
+            console.log("[VoiceSelector] Filtrando solo voces de usuario...");
             loadedVoices = loadedVoices.filter((v: Voice) => v.isUserVoice);
           }
+
+          console.log(
+            "[VoiceSelector] Voces antes del filtro:",
+            loadedVoices.length,
+          );
 
           // ✅ FILTRAR: Solo mostrar voces Gemini TTS si hay alguna disponible
           const geminiVoices = loadedVoices.filter(
             (v: Voice) => v.id && v.id.startsWith("gemini-"),
           );
+          console.log(
+            "[VoiceSelector] Voces Gemini encontradas:",
+            geminiVoices.length,
+          );
+
           if (geminiVoices.length > 0) {
+            console.log("[VoiceSelector] Usando voces Gemini");
             loadedVoices = geminiVoices;
           }
+
+          console.log(
+            "[VoiceSelector] Voces finales a cargar:",
+            loadedVoices.length,
+          );
+          console.log(
+            "[VoiceSelector] Voces:",
+            JSON.stringify(loadedVoices, null, 2),
+          );
 
           setVoices(loadedVoices);
           console.log(
@@ -84,6 +111,7 @@ export function VoiceSelector({
         console.error("Error fetching voices:", err);
         setError("Error de conexión");
       } finally {
+        console.log("[VoiceSelector] Finalizando carga, loading = false");
         setLoading(false);
       }
     }
